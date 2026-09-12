@@ -2,14 +2,16 @@
 Course Project — ⾯向⾦融的 Python
 从零复现 AI Coding Agent：Python + LLM + Tool Calling + ReAct
 ## 安装
-```bash
+
+```markdown
+```powershell
 python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 ## 运⾏
 ```bash
 python main.py hello
-python main.py hello --name 张三
+python main.py hello --name 吴再倩
 python main.py version
-```
+```text
