@@ -35,6 +35,14 @@ class WriteResult:
     bytes_written: int
     created: bool
 
+@dataclass
+class DirEntry:
+    """目录项（文件或子目录）的结构化描述。"""
+
+    name: str
+    path: str
+    is_dir: bool
+    size: int
 
 class FileTool:
     """文件读写工具。"""
@@ -104,3 +112,51 @@ class FileTool:
             bytes_written=len(content.encode(encoding)),
             created=created,
         )
+
+    def list_dir(
+        self,
+        path: str | Path,
+        recursive: bool = False,
+        pattern: str = "*",
+    ) -> list[DirEntry]:
+        """列出目录内容。"""
+
+        target = Path(path)
+
+        # 路径不存在
+        if not target.exists():
+            raise FileReadError(f"目录不存在: {target}")
+
+        # 路径存在，但不是目录
+        if not target.is_dir():
+            raise FileReadError(f"不是目录: {target}")
+
+        try:
+            # recursive=True 时递归查找
+            if recursive:
+                children = list(target.rglob(pattern))
+            else:
+                children = list(target.glob(pattern))
+
+        except OSError as e:
+            raise FileReadError(f"列举目录失败: {e}") from e
+
+        entries: list[DirEntry] = []
+
+        for child in sorted(children, key=lambda p: str(p).lower()):
+            try:
+                # 文件记录实际大小，目录大小记为 0
+                size = child.stat().st_size if child.is_file() else 0
+            except OSError:
+                size = 0
+
+            entries.append(
+                DirEntry(
+                    name=child.name,
+                    path=str(child),
+                    is_dir=child.is_dir(),
+                    size=size,
+                )
+            )
+
+        return entries    
