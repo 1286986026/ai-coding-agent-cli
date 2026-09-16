@@ -118,3 +118,83 @@ def test_read_lines(tmp_path: Path) -> None:
     lines = FileTool().read_lines(p)
 
     assert lines == ["a", "b", "c"]
+
+
+def test_read_auto_detect_gbk(tmp_path: Path) -> None:
+    """测试 encoding=None 时自动识别 GBK 中文文件。"""
+
+    p = tmp_path / "gbk.txt"
+
+    text = (
+        "中文编码自动检测测试："
+        "你好世界，这是第二节课堂作业。"
+    )
+
+    # 创建 GBK 编码文件
+    raw = text.encode("gbk")
+    p.write_bytes(raw)
+
+    # encoding=None 表示自动检测编码
+    result = FileTool().read(
+        p,
+        encoding=None,
+    )
+
+    # 内容必须正确恢复
+    assert result.content == text
+
+    # 字节数应与原始文件一致
+    assert result.size == len(raw)
+
+    # 编码名称可能是 GBK、GB2312、gb18030 等
+    assert result.encoding
+
+
+def test_write_and_read_bytes(tmp_path: Path) -> None:
+    """测试二进制文件写入和读取。"""
+
+    p = tmp_path / "binary.bin"
+
+    data = b"\x01\x02\x03\x04\x05"
+
+    tool = FileTool()
+
+    result = tool.write_bytes(
+        p,
+        data,
+    )
+
+    assert result.created is True
+    assert result.bytes_written == len(data)
+
+    read_data = tool.read_bytes(p)
+
+    assert read_data == data
+
+
+def test_read_bytes_nonexistent_raises(
+    tmp_path: Path,
+) -> None:
+    """测试读取不存在的二进制文件。"""
+
+    p = tmp_path / "not_exist.bin"
+
+    with pytest.raises(FileReadError):
+        FileTool().read_bytes(p)
+
+
+def test_batch_context_manager(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """测试 batch 上下文管理器。"""
+
+    tool = FileTool()
+
+    with tool.batch():
+        print("processing file")
+
+    captured = capsys.readouterr()
+
+    assert "批量开始" in captured.out
+    assert "processing file" in captured.out
+    assert "批量结束" in captured.out
