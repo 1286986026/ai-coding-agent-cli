@@ -35,14 +35,16 @@ class WriteResult:
     bytes_written: int
     created: bool
 
+
 @dataclass
 class DirEntry:
-    """目录项（文件或子目录）的结构化描述。"""
+    """目录项。"""
 
     name: str
     path: str
     is_dir: bool
     size: int
+
 
 class FileTool:
     """文件读写工具。"""
@@ -52,8 +54,6 @@ class FileTool:
         path: str | Path,
         encoding: str = "utf-8",
     ) -> FileContent:
-        """读取文本文件并返回结构化结果。"""
-
         target = Path(path)
 
         if not target.exists():
@@ -66,7 +66,7 @@ class FileTool:
             content = target.read_text(encoding=encoding)
         except UnicodeDecodeError as e:
             raise FileReadError(
-                f"编码解码失败 (encoding={encoding})，请检查文件编码: {e}"
+                f"编码解码失败 (encoding={encoding}): {e}"
             ) from e
         except OSError as e:
             raise FileReadError(f"读取失败: {e}") from e
@@ -92,20 +92,29 @@ class FileTool:
         encoding: str = "utf-8",
         overwrite: bool = True,
     ) -> WriteResult:
-        """写入文本文件并返回写入结果。"""
-
         target = Path(path)
 
         if target.exists() and not overwrite:
-            raise FileWriteError(f"文件已存在且不允许覆盖: {target}")
+            raise FileWriteError(
+                f"文件已存在且不允许覆盖: {target}"
+            )
 
         created = not target.exists()
 
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding=encoding)
+            target.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            target.write_text(
+                content,
+                encoding=encoding,
+            )
         except OSError as e:
-            raise FileWriteError(f"写入失败: {e}") from e
+            raise FileWriteError(
+                f"写入失败: {e}"
+            ) from e
 
         return WriteResult(
             path=str(target),
@@ -119,34 +128,39 @@ class FileTool:
         recursive: bool = False,
         pattern: str = "*",
     ) -> list[DirEntry]:
-        """列出目录内容。"""
-
         target = Path(path)
 
-        # 路径不存在
         if not target.exists():
-            raise FileReadError(f"目录不存在: {target}")
+            raise FileReadError(
+                f"目录不存在: {target}"
+            )
 
-        # 路径存在，但不是目录
         if not target.is_dir():
-            raise FileReadError(f"不是目录: {target}")
+            raise FileReadError(
+                f"不是目录: {target}"
+            )
 
         try:
-            # recursive=True 时递归查找
             if recursive:
                 children = list(target.rglob(pattern))
             else:
                 children = list(target.glob(pattern))
-
         except OSError as e:
-            raise FileReadError(f"列举目录失败: {e}") from e
+            raise FileReadError(
+                f"列举目录失败: {e}"
+            ) from e
 
         entries: list[DirEntry] = []
 
-        for child in sorted(children, key=lambda p: str(p).lower()):
+        for child in sorted(
+            children,
+            key=lambda p: str(p).lower(),
+        ):
             try:
-                # 文件记录实际大小，目录大小记为 0
-                size = child.stat().st_size if child.is_file() else 0
+                if child.is_file():
+                    size = child.stat().st_size
+                else:
+                    size = 0
             except OSError:
                 size = 0
 
@@ -159,4 +173,50 @@ class FileTool:
                 )
             )
 
-        return entries    
+        return entries
+
+    def append(
+        self,
+        path: str | Path,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> WriteResult:
+        target = Path(path)
+
+        created = not target.exists()
+
+        try:
+            target.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            with open(
+                target,
+                "a",
+                encoding=encoding,
+            ) as f:
+                f.write(content)
+
+        except OSError as e:
+            raise FileWriteError(
+                f"追加失败: {e}"
+            ) from e
+
+        return WriteResult(
+            path=str(target),
+            bytes_written=len(content.encode(encoding)),
+            created=created,
+        )
+
+    def read_lines(
+        self,
+        path: str | Path,
+        encoding: str = "utf-8",
+    ) -> list[str]:
+        fc = self.read(
+            path,
+            encoding=encoding,
+        )
+
+        return fc.content.splitlines()
