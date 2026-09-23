@@ -1,0 +1,2 @@
+Lab03 用于学习 GLMClient 与 ReAct Agent。
+工具的真实执行结果必须作为 Observation 回灌给模型。
