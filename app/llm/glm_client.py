@@ -8,82 +8,117 @@ import httpx
 
 
 # ============================================================
-# 异常定义
+# 自定义异常
 # ============================================================
 
 
 class LLMError(RuntimeError):
-    """GLM 网络请求或 HTTP 层错误。"""
+    """
+    GLM 网络请求或 HTTP 层错误。
+    """
 
 
 class ProtocolError(RuntimeError):
-    """GLM 返回的数据不符合本实验约定。"""
+    """
+    GLM 返回的数据不符合本实验协议。
+    """
 
 
 # ============================================================
-# assistant 消息校验
+# assistant message 校验
 # ============================================================
 
 
-def validate_message(message: Any) -> dict[str, Any]:
+def validate_message(
+    message: Any,
+) -> dict[str, Any]:
     """
-    校验模型返回的 assistant 消息。
+    校验 GLM 返回的 assistant message。
 
-    本实验需要保留完整 assistant message，
-    因为后面不仅要读取 content，
-    还需要读取 tool_calls。
+    需要保留完整 assistant message，
+    因为 ReAct Agent 后续既要读取 content，
+    也要读取 tool_calls。
     """
+
+    # --------------------------------------------------------
+    # message 必须是字典
+    # --------------------------------------------------------
 
     if not isinstance(message, dict):
         raise ProtocolError(
             "assistant message 必须是字典"
         )
 
+    # --------------------------------------------------------
     # role 必须是 assistant
+    # --------------------------------------------------------
+
     if message.get("role") != "assistant":
         raise ProtocolError(
             "模型响应的 role 必须是 assistant"
         )
 
-    # content 可以是字符串，也可以是 None
+    # --------------------------------------------------------
+    # content 可以是字符串或 None
+    # --------------------------------------------------------
+
     content = message.get("content")
 
-    if content is not None and not isinstance(
-        content,
-        str,
+    if (
+        content is not None
+        and not isinstance(content, str)
     ):
         raise ProtocolError(
             "assistant content 必须是字符串或 None"
         )
 
-    # tool_calls 可以不存在、为 None，或者为列表
+    # --------------------------------------------------------
+    # tool_calls 可以不存在、None 或 list
+    # --------------------------------------------------------
+
     tool_calls = message.get("tool_calls")
 
     if tool_calls is not None:
+
         if not isinstance(tool_calls, list):
             raise ProtocolError(
                 "tool_calls 必须是列表或 None"
             )
 
         for tool_call in tool_calls:
+
+            # 每个调用必须是 dict
             if not isinstance(tool_call, dict):
                 raise ProtocolError(
                     "每个 tool_call 必须是字典"
                 )
 
-            # 每个工具调用必须有唯一 ID
+            # ----------------------------------------------
+            # id
+            # ----------------------------------------------
+
             call_id = tool_call.get("id")
 
-            if not isinstance(call_id, str) or not call_id:
+            if (
+                not isinstance(call_id, str)
+                or not call_id
+            ):
                 raise ProtocolError(
                     "tool_call 缺少有效 id"
                 )
 
-            # 当前课程只处理 function 类型
+            # ----------------------------------------------
+            # type
+            # ----------------------------------------------
+
             if tool_call.get("type") != "function":
                 raise ProtocolError(
                     "tool_call.type 必须是 function"
                 )
+
+            # ----------------------------------------------
+            # function
+            # ----------------------------------------------
 
             function = tool_call.get("function")
 
@@ -92,16 +127,30 @@ def validate_message(message: Any) -> dict[str, Any]:
                     "tool_call.function 必须是字典"
                 )
 
-            name = function.get("name")
-            arguments = function.get("arguments")
+            # ----------------------------------------------
+            # name
+            # ----------------------------------------------
 
-            if not isinstance(name, str) or not name:
+            name = function.get("name")
+
+            if (
+                not isinstance(name, str)
+                or not name
+            ):
                 raise ProtocolError(
                     "工具调用缺少有效 name"
                 )
 
-            # arguments 仍然是 JSON 字符串，
-            # 后续 BasicTools 再进行 json.loads()
+            # ----------------------------------------------
+            # arguments
+            #
+            # 注意：
+            # arguments 在模型响应中仍然是 JSON 字符串，
+            # 后续 Agent 再用 json.loads() 解码。
+            # ----------------------------------------------
+
+            arguments = function.get("arguments")
+
             if not isinstance(arguments, str):
                 raise ProtocolError(
                     "工具 arguments 必须是 JSON 字符串"
@@ -116,7 +165,23 @@ def validate_message(message: Any) -> dict[str, Any]:
 
 
 class GLMClient:
-    """智谱 GLM Chat Completions 客户端。"""
+    """
+    智谱 GLM Chat Completions 客户端。
+
+    职责：
+    1. 构造 HTTP 请求
+    2. 添加认证 Header
+    3. 发送 messages / tools
+    4. 检查 HTTP 状态
+    5. 解析 JSON
+    6. 返回完整 assistant message
+
+    不负责：
+    - 文件读写
+    - Shell 执行
+    - 工具 dispatch
+    - ReAct 循环
+    """
 
     API_URL = (
         "https://open.bigmodel.cn/"
@@ -124,31 +189,35 @@ class GLMClient:
     )
 
     def __init__(
-    self,
-    model: str | None = None,
-    api_key: str | None = None,
-    timeout: float = 120.0,
+        self,
+        model: str | None = None,
+        api_key: str | None = None,
+        timeout: float = 120.0,
         http_client: httpx.Client | None = None,
     ) -> None:
         """
         初始化 GLMClient。
 
         model:
-            模型标识。
-            优先使用传入值，否则读取 GLM_MODEL。
+            优先使用传入值，
+            否则读取环境变量 GLM_MODEL。
 
         api_key:
-            API Key。
-            优先使用传入值，否则读取 GLM_API_KEY。
-            如果都没有，则使用 getpass 隐藏输入。
+            优先使用传入值，
+            否则读取环境变量 GLM_API_KEY。
+            若仍不存在，则使用 getpass 隐藏输入。
 
         timeout:
             HTTP 请求超时时间。
 
         http_client:
-            可以注入 httpx.Client。
-            后续 pytest 可以注入 MockTransport。
+            可注入 httpx.Client，
+            pytest 可以使用 MockTransport。
         """
+
+        # ----------------------------------------------------
+        # 模型名称
+        # ----------------------------------------------------
 
         self.model = (
             model
@@ -158,8 +227,12 @@ class GLMClient:
         if not self.model:
             raise LLMError(
                 "未设置 GLM_MODEL。"
-                "请先设置老师确认的模型标识。"
+                "请先设置可用模型标识。"
             )
+
+        # ----------------------------------------------------
+        # API Key
+        # ----------------------------------------------------
 
         self.api_key = (
             api_key
@@ -176,12 +249,16 @@ class GLMClient:
                 "GLM API Key 不能为空"
             )
 
+        # ----------------------------------------------------
+        # 其他配置
+        # ----------------------------------------------------
+
         self.timeout = timeout
         self.http_client = http_client
 
-    # --------------------------------------------------------
+    # ========================================================
     # chat
-    # --------------------------------------------------------
+    # ========================================================
 
     def chat(
         self,
@@ -191,23 +268,33 @@ class GLMClient:
         """
         调用 GLM Chat Completions API。
 
-        返回经过校验的完整 assistant message。
-
         普通聊天：
-            chat(messages)
+
+            client.chat(messages)
 
         Tool Calling：
-            chat(messages, tools)
+
+            client.chat(
+                messages,
+                tools=tools,
+            )
+
+        返回：
+            完整 assistant message。
         """
+
+        # ----------------------------------------------------
+        # messages 基础校验
+        # ----------------------------------------------------
 
         if not isinstance(messages, list):
             raise ProtocolError(
                 "messages 必须是列表"
             )
 
-        # ====================================================
-        # 构造请求
-        # ====================================================
+        # ----------------------------------------------------
+        # 构造请求 JSON
+        # ----------------------------------------------------
 
         payload: dict[str, Any] = {
             "model": self.model,
@@ -215,9 +302,14 @@ class GLMClient:
             "stream": False,
         }
 
-        # 普通聊天时不发送 tools
+        # 普通聊天时不发 tools。
+        # ReAct 模式传入 tools 时才加入请求。
         if tools is not None:
             payload["tools"] = tools
+
+        # ----------------------------------------------------
+        # HTTP Headers
+        # ----------------------------------------------------
 
         headers = {
             "Authorization": (
@@ -226,10 +318,15 @@ class GLMClient:
             "Content-Type": "application/json",
         }
 
+        # ----------------------------------------------------
+        # HTTP 请求
+        # ----------------------------------------------------
+
         try:
-            # 如果测试时注入了 Client，
-            # 就使用注入的 Client。
+
+            # pytest / HTTP Mock 场景
             if self.http_client is not None:
+
                 response = self.http_client.post(
                     self.API_URL,
                     headers=headers,
@@ -237,22 +334,29 @@ class GLMClient:
                     timeout=self.timeout,
                 )
 
+            # 真实联网场景
             else:
-                # 正常真实请求
+
                 with httpx.Client(
                     timeout=self.timeout,
                     follow_redirects=True,
                 ) as client:
+
                     response = client.post(
                         self.API_URL,
                         headers=headers,
                         json=payload,
                     )
 
-            # HTTP 非 2xx 时抛出异常
+            # 非 2xx 自动转为 HTTPStatusError
             response.raise_for_status()
 
+        # ----------------------------------------------------
+        # HTTP 非成功状态
+        # ----------------------------------------------------
+
         except httpx.HTTPStatusError as exc:
+
             status_code = (
                 exc.response.status_code
             )
@@ -262,7 +366,12 @@ class GLMClient:
                 f"状态码: {status_code}"
             ) from exc
 
+        # ----------------------------------------------------
+        # 网络连接 / timeout 等错误
+        # ----------------------------------------------------
+
         except httpx.RequestError as exc:
+
             raise LLMError(
                 f"GLM 网络请求失败: {exc}"
             ) from exc
@@ -283,6 +392,10 @@ class GLMClient:
             raise ProtocolError(
                 "GLM 响应顶层必须是 JSON 对象"
             )
+
+        # ----------------------------------------------------
+        # choices
+        # ----------------------------------------------------
 
         choices = data.get("choices")
 
@@ -309,8 +422,13 @@ class GLMClient:
             "finish_reason"
         )
 
-        # 本实验只把 stop 和 tool_calls
-        # 作为支持的完整结束标记
+        # 本实验只接受：
+        #
+        # stop       -> 普通最终回答
+        # tool_calls -> 模型申请工具
+        #
+        # length 等表示响应不完整，
+        # 按 ProtocolError 处理。
         if finish_reason not in {
             "stop",
             "tool_calls",
@@ -324,6 +442,10 @@ class GLMClient:
         # assistant message
         # ====================================================
 
-        message = choice.get("message")
+        message = choice.get(
+            "message"
+        )
 
-        return validate_message(message)
+        return validate_message(
+            message
+        )
