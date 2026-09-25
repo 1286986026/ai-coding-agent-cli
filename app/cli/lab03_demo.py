@@ -38,30 +38,55 @@ def print_trace(messages):
 
 def live_chat() -> None:
     """
-    普通 GLM 对话测试。
-    当前阶段不接入 tools。
+    多轮 ReAct 聊天模式
+    支持：
+    1. 用户连续输入
+    2. 调用 ReActAgent
+    3. 保留历史
+    4. /exit退出
     """
+
+    root = Path("demo_lab03")
+
+    tools = BasicTools(
+        root
+    )
 
     client = GLMClient()
 
-    messages = [
-        {
-            "role": "system",
-            "content": "你是一个 Python 助手。",
-        },
-        {
-            "role": "user",
-            "content": "请用一句话介绍 Python。",
-        },
-    ]
-
-    response = client.chat(
-        messages
+    agent = ReActAgent(
+        client=client,
+        tools=tools,
+        max_iterations=10,
     )
 
-    print(
-        response["content"]
-    )
+    print("\n进入 Lab03 ReAct 聊天模式")
+    print("输入 /exit 退出\n")
+
+
+    while True:
+
+        user_input = input("User: ")
+
+        if user_input.strip() == "/exit":
+            print("退出聊天")
+            break
+
+
+        result = agent.run(
+            user_input
+        )
+
+
+        print("\n状态:")
+        print(result.status)
+
+
+        print("\n回答:")
+        print(result.answer)
+
+
+        print("\n----------------\n")
 
 
 def react_demo(
