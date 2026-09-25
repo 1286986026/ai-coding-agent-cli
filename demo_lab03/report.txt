@@ -1,1 +1,19 @@
-Lab03 Report
+Lab03 任务报告
+================
+
+1. 目录浏览（list_dir，path="."）
+教学根目录下共有 2 个条目，均为文件，无子目录：
+- lab03_report.txt（文件，大小 12 字节）
+- notes.txt（文件，大小 121 字节）
+
+2. 读取 notes.txt（read_file）
+返回路径：C:\Users\Lenovo\projects\ai-coding-agent-cli\demo_lab03\notes.txt
+文件内容：
+Lab03 用于学习 GLMClient 与 ReAct Agent。
+工具的真实执行结果必须作为 Observation 回灌给模型。
+
+3. 本步骤说明
+- 本文件 report.txt 由 write_file 创建；
+- 随后由 execute_command 执行 echo lab03-shell-ok。
+
+本报告依据工具的真实返回结果生成。

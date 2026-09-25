@@ -55,8 +55,8 @@ class ReActAgent:
 
         self.messages.append(
             {
-                "role": "user",
-                "content": task,
+            "role": "user",
+            "content": task,
             }
         )
 
@@ -67,7 +67,8 @@ class ReActAgent:
         ):
 
             response = self.client.chat(
-                self.messages
+                self.messages,
+                tools=self.tools.schema(),
             )
 
 

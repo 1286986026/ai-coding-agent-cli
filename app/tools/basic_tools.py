@@ -37,6 +37,97 @@ class BasicTools:
     # 路径安全检查
     # =====================================================
 
+    def schema(self) -> list[dict[str, Any]]:
+        """
+        返回提供给大模型的四个工具定义。
+        GLM 根据这些 Schema 生成标准 tool_calls。
+        """
+
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_dir",
+                    "description": "列出教学目录中指定相对路径的一层文件和目录",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "相对于教学根目录的目录路径，默认使用当前根目录",
+                            }
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "读取教学目录中的 UTF-8 文本文件",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "相对于教学根目录的文件路径",
+                            }
+                        },
+                        "required": ["path"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "write_file",
+                    "description": "在教学目录中创建 UTF-8 文本文件，不覆盖已经存在的文件",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "相对于教学根目录的新文件路径",
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "需要写入文件的文本内容",
+                            },
+                        },
+                        "required": ["path", "content"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "execute_command",
+                    "description": "执行实验允许的固定 Shell 命令",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": {
+                                "type": "string",
+                                "description": "只允许实验白名单中的命令",
+                                "enum": [
+                                    "echo lab03-shell-ok",
+                                    "cd",
+                                ],
+                            }
+                        },
+                        "required": ["command"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+        ]
+
+
+
+
     def _safe_path(
         self,
         path: str,

@@ -302,10 +302,13 @@ class GLMClient:
             "stream": False,
         }
 
-        # 普通聊天时不发 tools。
-        # ReAct 模式传入 tools 时才加入请求。
+        # 普通聊天时不发 tools
+        # ReAct 模式传入 tools 时才加入请求
         if tools is not None:
             payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+           
 
         # ----------------------------------------------------
         # HTTP Headers
