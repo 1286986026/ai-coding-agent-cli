@@ -92,6 +92,7 @@ def live_chat() -> None:
 def react_demo(
     fake=False,
     trace=False,
+    project_root: Path | None = None,
 ):
 
     root = Path(
@@ -117,6 +118,7 @@ def react_demo(
         client=client,
         tools=tools,
         max_iterations=10,
+        project_root=project_root,
     )
 
 
@@ -193,6 +195,12 @@ def main() -> None:
         action="store_true",
     )
 
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        default=None,
+        help="项目根目录；指定后，新会话启动时加载其中的 AGENTS.md",
+    )
 
 
 
@@ -204,6 +212,7 @@ def main() -> None:
         react_demo(
             fake=True,
             trace=args.trace,
+            project_root=args.project_root,
         )
 
 
@@ -212,6 +221,7 @@ def main() -> None:
         react_demo(
             fake=False,
             trace=args.trace,
+            project_root=args.project_root,
         )
 
 

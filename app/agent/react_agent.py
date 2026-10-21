@@ -3,6 +3,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any
+from pathlib import Path
+from app.agent.agents_loader import (
+    load_agents_md,
+)
 
 
 @dataclass
@@ -36,13 +40,65 @@ class ReActAgent:
         client,
         tools,
         max_iterations: int = 10,
+        project_root: Path | None = None,
     ):
         self.client = client
         self.tools = tools
         self.max_iterations = max_iterations
 
+        # ---------------------------------
+        # Lab05：项目根目录
+        # ---------------------------------
+
+        self.project_root = (
+            project_root.resolve()
+            if project_root is not None
+            else None
+        )
+
+        # ---------------------------------
+        # Lab05：项目级规则快照
+        # ---------------------------------
+
+        self.agents_status = "not_configured"
+        self.project_instructions = None
+
+        # ---------------------------------
+        # 初始化会话历史
+        # ---------------------------------
+
         self.messages = []
 
+        # 只有明确传入 project_root 时，
+        # 才尝试加载 AGENTS.md。
+        #
+        # 这样旧代码 ReActAgent(client, tools)
+        # 的行为完全保持不变。
+        if self.project_root is not None:
+            agents_result = load_agents_md(
+                self.project_root
+            )
+
+            self.agents_status = (
+                agents_result.status
+            )
+
+            self.project_instructions = (
+                agents_result.content
+            )
+
+            # 有有效规则时，只加入一次 system message。
+            if self.project_instructions:
+                self.messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "以下是当前项目的项目级规则，"
+                            "来自 AGENTS.md：\n\n"
+                            f"{self.project_instructions}"
+                        ),
+                    }
+                )
 
     def run(
         self,
