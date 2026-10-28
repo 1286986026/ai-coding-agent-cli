@@ -38,12 +38,12 @@ class ReActAgent:
     def __init__(
         self,
         client,
-        tools,
+        registry,
         max_iterations: int = 10,
         project_root: Path | None = None,
     ):
         self.client = client
-        self.tools = tools
+        self.registry = registry
         self.max_iterations = max_iterations
 
         # ---------------------------------
@@ -100,7 +100,7 @@ class ReActAgent:
                     }
                 )
 
-    def run(
+    async def run(
         self,
         task: str,
     ) -> AgentResult:
@@ -124,7 +124,7 @@ class ReActAgent:
 
             response = self.client.chat(
                 self.messages,
-                tools=self.tools.schema(),
+                tools=self.registry.definitions(),
             )
 
 
@@ -170,7 +170,7 @@ class ReActAgent:
                 )
 
 
-                result = self.dispatch(
+                result = await self.registry.dispatch(
                     name,
                     arguments,
                 )
@@ -194,38 +194,4 @@ class ReActAgent:
             status="iteration_limit",
             answer="",
             iterations=self.max_iterations,
-        )
-
-
-    def dispatch(
-        self,
-        name: str,
-        arguments: dict[str, Any],
-    ):
-
-        mapping = {
-            "read_file":
-                self.tools.read_file,
-
-            "write_file":
-                self.tools.write_file,
-
-            "list_dir":
-                self.tools.list_dir,
-
-            "execute_command":
-                self.tools.execute_command,
-        }
-
-
-        if name not in mapping:
-            return {
-                "ok": False,
-                "error":
-                    f"unknown tool: {name}",
-            }
-
-
-        return mapping[name](
-            **arguments
         )
